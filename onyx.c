@@ -6,10 +6,16 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include "op_types.h"
-#include "unixcube/op_fio.h"
+#include <unixcube/op_types.h>
+#include <unixcube/thc4_lib.h>
 
 #define _onuux_max_line_input_bytes_ 1024
+
+typedef struct vec_2d_t { _ul x, y; }vec_2d;
+typedef struct vec_3d_t { _ul x, y, z; }vec_3d;
+
+#define _v2D vec_2d
+#define _v3D vec_3d
 
 typedef struct onuux_line_t
 {
@@ -19,45 +25,6 @@ typedef struct onuux_line_t
 
     struct onuux_line* next;
 }onuux_line;
-
-_ul count_exchars(_c* sz, _c exch)
-{
-    _ul i0;
-    _ul exch_i=0;
-  
-    _ul szlen = strlen((_cc*)sz);
-    for(i0=0; i0 <= szlen-1; ++i0){
-        if(sz[i0] == exch){
-            printf("-%c-",sz[i0]);
-            exch_i++;
-        }
-    }
-   szlen -= exch_i;
-    printf("exlc[%i]\n", szlen);
-   
-    return(szlen);
-}
-/*
-_ul strcpy_genlen(_c* sz1, _c excl)
-{
-    _ul len = strlen((_cc*)sz1)-count_exchars(sz1, excl);
-    printf("would copy %i chars\n", len);
-    return(len);
-}*/
-
-_ul strcpy_exch(_c* sz0, _c* sz1, _c excl)
-{
-    _ul i0;
-    _ul alloc_bytes = count_exchars(sz1, excl);
-    sz0 = (_c*)malloc(sizeof(_c) * alloc_bytes);
-
-    for(i0=0; i0 <= alloc_bytes-1; ++i0){
-        if(sz1[i0] != excl){
-            sz0[i0] = sz1[i0];
-        } 
-    }
-    return(alloc_bytes);
-}
 
 onuux_line* new_line_assign(_c* sz, onuux_line* prev)
 {
@@ -91,18 +58,18 @@ onuux_line *parseLine(FILE *file, _c endl_tok)
   onuux_line* head = new_line_init();
   onuux_line* util =0;
 
-  char *lineBuffer=calloc(1,1), line[_onuux_max_line_input_bytes_];
+  char line[_onuux_max_line_input_bytes_];
 
-  if ( !file || !lineBuffer )
+  if ( !file  )
   {
     fprintf(stderr,"an ErrorNo 1: ...");
     exit(1);
   }
   line_count=0;
-  for(util=head; fgets(line,sizeof line,file) ; strcat(lineBuffer,line) )
+  for(util=head; fgets(line,sizeof line,file) ; )         
   {
     if( strchr(line, endl_tok) ) *strchr(line, endl_tok)=0;
-    //lineBuffer=realloc(lineBuffer, strlen(line)+1);
+   
     if( !line )
     {
       fprintf(stderr,"an ErrorNo 2: ...");
@@ -111,45 +78,160 @@ onuux_line *parseLine(FILE *file, _c endl_tok)
       new_line_assign(line, util);
       util=util->next;
       line_count++;
-      printf("entered line[%i] of %i bytes", util->index, util->line_len);
-      printf(" :: %s|\n",util->line_sz); 
+     
     }
   }
-  printf("\n\nentered %i lines...\n",line_count);
+ 
   head->state = line_count;
   return head;
 }
 
-_c* encrypt_pwlf_file(_c* fnam, _c* password_master)
+#define oFrameNode onuux_line
+
+typedef struct onyx_dataset_t
 {
-return(0);
+    _c* name;
+
+    oFrameNode* master;
+
+    _ul frame_count;
+    _ul longest_frame;
+    _ul current_frame;
+    
+    _ul ds_index;
+    _ul ds_state;
+    thc4_n* ds_hash;
+    struct onyx_dataset_t* next;
+
+}onyx_dataset;
+
+onyx_dataset* newset_assign(_c* setname, onyx_dataset* prev)
+{
+    onyx_dataset* newset = (onyx_dataset*)malloc(sizeof(onyx_dataset) );
+    if(setname){
+        newset->name = (_c*)malloc(sizeof(_c) * strlen((_cc*)setname));
+        strcpy(newset->name, setname);
+    }else{
+        newset->name=0;
+    }
+    newset->master = new_line_init();
+    newset->frame_count = prev->frame_count+1;
+    newset->longest_frame=0;
+    newset->current_frame=0;
+
+    newset->ds_index=newset->frame_count;
+    newset->ds_state = 1;
+    newset->ds_hash=0;
+
+    newset->next=0;
+
+    if(prev != 0)
+        prev->next = newset;
+
+    return(newset);
 }
 
-_c* get_decrypted_pwlf_data(_c* fnam, _c* password_master)
+onyx_dataset* newset_init()
 {
-return(0);
+    onyx_dataset* newset = (onyx_dataset*)malloc(sizeof(onyx_dataset) );
+    newset->name=0; newset->master=0; newset->frame_count=0;
+    newset->longest_frame=0;newset->current_frame=0;
+    newset->ds_index=0;newset->ds_state=0;
+    newset->ds_hash=0;newset->next=0;
+    return(newset);
 }
 
-thc4_n* thc4_multisymmetric_variable_precision_hashvect( onuux_line* pwdb)
-{
 
+_i strcmp_avec(_c* sz0, _c* sz1, _ul ind0, _ul ind1)
+{
+    _ul i0, i1;
+    _i is_match;
+    _ul lim_a = strlen((_cc*)sz0);
+    _ul lim_b = strlen((_cc*)sz1);
+    is_match=0;
+    for(i0=ind0, i1=ind1; i0 <= lim_a-1 && i1 <= lim_b-1; ++i0, ++i1){
+        if(sz0[i0] == sz1[i1]){
+            is_match++;
+        }else{
+            is_match=0;
+            break;
+        }
+    }
+    is_match = is_match > 0 ? 1:0;
+    return(is_match);
 }
+
+_v2D find_in_dataset(onyx_dataset* dset, _c* pattern, _i method)
+{
+    _v2D v;
+    _ul li0, li1;
+    _ul len_tmp0, len_tmp1, 
+    _ul len_dif_t, len_dif;
+    onuux_line* util = dset->master;
+        
+    for(li0=0, v.x=0, v.y=0; ; ++v.x){
+        len_tmp0 = util->line_len;
+        len_tmp1 = strlen((_cc*)pattern);
+        len_dif_t = len_tmp0 > len_tmp1 ? 0 : 1;
+        len_dif_t = len_dif_t ? len_tmp0 - len_tmp1 : 
+                                  len_tmp1 - len_tmp0;
+
+        if(len_dif_t){
+            for(li0=0; li0 <= len_dif_t-1; ++li0){
+                if(util->line_sz[0] == pattern[li0]){
+                    v.y = strcmp_avec(util->line_sz, pattern, 0, li0) ? li0 : 0; 
+                    if(v.y)
+                        break; 
+            }   }
+        }else{
+            for(li0=0; li0 <= len_dif_t-1; ++li0){
+                if(pattern[0] == util->line_sz[li0]){
+                    v.y = strcmp_avec(pattern, util->line_sz, 0, li0) ? li0 : 0; 
+                    if(v.y)
+                        break;                                              
+        }   }    }
+        if(v.y){
+            break;
+        }else{
+            if(util->next != 0)
+                util = util->next;
+            else
+                break;
+    }   }
+    return(v);
+}
+
+_ul oxds_set_name(onyx_dataset* dset, _c* dsname)
+{
+    dset->name=(_c*)malloc( (sizeof(_c) * strlen((_cc*)dsname))+1);
+    strcpy(dset->name, dsname);
+    return(strlen((_cc*)dset->name));
+}
+
+onyx_dataset* chop_file(_c* fnam, _c delim)
+{
+    FILE* fp = fopen(fnam, "rw+b");
+
+    onyx_dataset* dset=newset_init();
+   
+    newset_assign(fnam, dset);
+
+    dset->master = parseLine(fp, delim);
+
+    fclose(fp);
+    return(dset);
+}
+
 
 _i main(_i argc, _c** argv)
 {
     _i i0;
-    FILE* fp=fopen(argv[1], "rw+b");
-    onuux_line* line_stack = parseLine(fp, ';');
-    if(line_stack->state > 1){
-        printf("appartently we got %i lines..\n", line_stack->state);
-
-        for( i0=0; i0 <= 4; ++i0){
-            printf("string[%i]::%s\n", line_stack->index, line_stack->line_sz);
-            line_stack = line_stack->next;
-        }
-    }else{
-        printf("we aint got shit, ese...\n");
+    onyx_dataset* ds0=0, *ds1=0;
+    for(i0=0; i0 <= argc-2; ++i0){
+        ds0 = chop_file(argv[i0+1], ';' );
+        ds1=ds0;
+        ds1=ds1->next;
+        printf("chopped file: %s\n", ds1->name);
     }
-    printf("exiting program..\n");
     return(0);
 }
