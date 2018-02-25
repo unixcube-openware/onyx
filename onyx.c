@@ -6,8 +6,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <unixcube/op_types.h>
-#include <unixcube/thc4_lib.h>
+#include "op_types.h"
+#include "op_fio.h"
 
 #define _onuux_max_line_input_bytes_ 1024
 
